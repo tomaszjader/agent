@@ -1,56 +1,93 @@
-# Prosty agent z predefiniowanymi akcjami (OpenAI)
+# Agent oparty na Google ADK
 
-Ten prosty agent przyjmuje polecenie w języku naturalnym i, korzystając z API OpenAI, wybiera i wykonuje jedną z kilku z góry zdefiniowanych akcji.
+Prosty, konfigurowalny agent AI zbudowany w całości przy użyciu biblioteki `google-adk`. Agent potrafi korzystać z zdefiniowanych narzędzi, aby odpowiadać na pytania i wykonywać zadania w języku naturalnym.
 
-## Dostępne akcje
-- `tell_time` – zwraca aktualną lokalną datę i godzinę.
-- `create_note` – zapisuje podaną treść do pliku `notes.txt` (dopisywanie na końcu).
-- `sum_numbers` – sumuje liczby podane w poleceniu.
+## Główne cechy
+
+- **Architektura oparta na Google ADK**: Wykorzystuje oficjalną bibliotekę `google-adk` do planowania, zarządzania sesją i wywoływania narzędzi.
+- **Narzędzia**: Agent ma dostęp do następujących narzędzi:
+  - `tell_time`: Podaje aktualną datę i godzinę.
+  - `create_note`: Tworzy i zapisuje notatki tekstowe do plików.
+  - `sum_numbers`: Sumuje listę liczb.
+  - `google_search`: Wyszukuje informacje w internecie (wbudowane narzędzie ADK).
+- **Model Gemini**: Działa w oparciu o modele z rodziny Google Gemini (np. `gemini-1.5-flash`).
+- **Tryb interaktywny i jednorazowy**: Można go uruchomić w pętli do prowadzenia rozmowy lub do wykonania pojedynczej instrukcji.
 
 ## Wymagania
+
 - Python 3.9+
-- Konto OpenAI i klucz API zapisany w zmiennej środowiskowej `OPENAI_API_KEY`
+- Klucz API od Google (Google AI Studio)
 
 ## Instalacja
-1. (Opcjonalnie) utwórz i aktywuj wirtualne środowisko:
-   - Windows (PowerShell):
-     ```powershell
-     python -m venv .venv
-     .\.venv\Scripts\Activate.ps1
-     ```
-2. Zainstaluj zależność:
-   ```powershell
-   python -m pip install -r requirements.txt
-   ```
 
-## Konfiguracja klucza API
-Ustaw zmienną środowiskową `OPENAI_API_KEY`:
-- Windows (PowerShell):
-  ```powershell
-  setx OPENAI_API_KEY "twoj_klucz_api"
-  # Zamknij i otwórz nowe okno terminala, aby zmiana zadziałała
-  ```
+1.  **Sklonuj repozytorium lub pobierz pliki.**
 
-Alternatywnie możesz uruchomić sesję z tymczasową zmienną:
-```powershell
-$env:OPENAI_API_KEY = "twoj_klucz_api"
-```
+2.  **Utwórz i aktywuj wirtualne środowisko (zalecane):**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # Na Windows: venv\Scripts\activate
+    ```
+
+3.  **Zainstaluj zależności:**
+    ```bash
+    python -m pip install -r requirements.txt
+    ```
+
+## Konfiguracja
+
+1.  **Skopiuj plik `.env.example` do nowego pliku o nazwie `.env`:**
+    ```bash
+    cp .env.example .env
+    ```
+
+2.  **Otwórz plik `.env` i wklej swój klucz API od Google:**
+    ```env
+    GOOGLE_API_KEY="TwojKluczApiGoogle"
+    ```
+
+3.  **(Opcjonalnie) Zmień model Gemini lub identyfikatory sesji:**
+    Możesz zmienić domyślny model `gemini-1.5-flash` na inny kompatybilny model z rodziny Gemini. Możesz również dostosować identyfikatory sesji, jeśli jest to potrzebne.
 
 ## Uruchomienie
-```powershell
+
+Agenta można uruchomić na dwa sposoby:
+
+### 1. Tryb interaktywny
+
+Uruchom skrypt bez żadnych argumentów, aby rozpocząć rozmowę z agentem. Wpisz `exit`, aby zakończyć.
+
+```bash
 python agent.py
 ```
-Wpisz polecenie w języku polskim, np.:
-- "Jaka jest teraz godzina?"
-- "Dodaj 2 i 5"
-- "Zapisz notatkę: kupić mleko i chleb"
 
-## Jak to działa
-- Skrypt wysyła Twoje polecenie do modelu z prośbą o zwrócenie czystego JSON-a wskazującego akcję (`action`) i argumenty (`args`).
-- Następnie lokalnie wykonuje wybraną akcję i wyświetla wynik.
-- Agent jest ograniczony tylko do zdefiniowanych akcji – nie wykonuje dowolnego kodu.
+**Przykład:**
+```
+> Jaka jest teraz godzina?
+2023-10-27 10:30:00
 
-## Pliki
-- `agent.py` – główny skrypt agenta
-- `requirements.txt` – zależności Pythona
-- `notes.txt` – (tworzony automatycznie przy pierwszym zapisie notatki)
+> Stwórz notatkę o nazwie 'lista.txt' z tekstem: kupić mleko
+Notatka zapisana w 'lista.txt'.
+
+> Jaka jest stolica Francji?
+Stolicą Francji jest Paryż.
+```
+
+### 2. Tryb jednorazowy
+
+Użyj flagi `-i` lub `--instruction`, aby przekazać pojedyncze polecenie. Agent wykona zadanie i zakończy działanie.
+
+```bash
+python agent.py --instruction "Zsumuj liczby 10, 25 i 7.5"
+```
+
+**Odpowiedź:**
+```
+Suma: 42.5
+```
+
+## Struktura projektu
+
+- `agent.py`: Główny plik zawierający całą logikę agenta, definicje narzędzi i pętlę uruchomieniową.
+- `requirements.txt`: Lista zależności Pythona (`google-adk`, `python-dotenv` itp.).
+- `.env.example`: Szablon pliku konfiguracyjnego dla kluczy API.
+- `README.md`: Ten plik.

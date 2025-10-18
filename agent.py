@@ -1,126 +1,115 @@
 import os
-import json
 import datetime
-from typing import Any, Dict, List
+import argparse
+import asyncio
+from typing import List, Any
 
 try:
-    from openai import OpenAI
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv())
 except ImportError:
-    OpenAI = None
+    pass
 
-import argparse
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 
+from google.adk.tools import google_search
+from google.genai import types as genai_types
 
-# ---- Akcje ----
+# ---- Konfiguracja ----
+GOOGLE_MODEL = os.environ.get("GOOGLE_MODEL", "gemini-pro")
+APP_NAME = os.environ.get("ADK_APP_NAME", "adk-agent-py")
+USER_ID = os.environ.get("ADK_USER_ID", "user-default")
+SESSION_ID = os.environ.get("ADK_SESSION_ID", "session-default")
+BASE_DIR = os.path.dirname(__file__)
 
-def action_tell_time() -> str:
+# ---- Narzędzia z dekoratorem @tool ----
+
+def tell_time() -> str:
+    """Zwraca aktualną datę i godzinę."""
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+def create_note(text: str, filename: str) -> str:
+    """Zapisuje podany tekst do pliku.
 
-def action_create_note(text: str, filename: str = "notes.txt") -> str:
-    base_dir = os.path.dirname(__file__)
-    notes_path = os.path.join(base_dir, filename or "notes.txt")
-    os.makedirs(os.path.dirname(notes_path), exist_ok=True)
+    Args:
+        text: Tekst do zapisania w notatce.
+        filename: Nazwa pliku, w którym ma być zapisana notatka.
+
+    Returns:
+        Komunikat potwierdzający zapisanie notatki.
+    """
+    notes_path = os.path.join(BASE_DIR, filename)
+    os.makedirs(os.path.dirname(notes_path) or ".", exist_ok=True)
     with open(notes_path, "a", encoding="utf-8") as f:
         f.write(text.strip() + "\n")
     return f"Notatka zapisana w '{os.path.basename(notes_path)}'."
 
+def sum_numbers(numbers: List[float]) -> float:
+    """Sumuje listę podanych liczb.
 
-def action_sum_numbers(numbers: List[Any]) -> float:
-    cleaned: List[float] = []
-    for n in numbers:
-        try:
-            cleaned.append(float(n))
-        except Exception:
-            raise ValueError(f"Nieprawidłowa liczba: {n}")
-    return sum(cleaned)
+    Args:
+        numbers: Lista liczb do zsumowania.
 
+    Returns:
+        Suma podanych liczb.
+    """
+    return sum(numbers)
 
-# ---- Wybór akcji przez LLM ----
+# ---- Główna logika agenta ADK ----
 
-def choose_action_via_llm(instruction: str) -> Dict[str, Any]:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "Brak zmiennej środowiskowej OPENAI_API_KEY. Ustaw klucz i spróbuj ponownie."
-        )
+def ensure_google_api_key() -> None:
+    """Sprawdza, czy klucz API Google jest ustawiony."""
+    if not os.environ.get("GOOGLE_API_KEY"):
+        raise RuntimeError("Brak zmiennej środowiskowej GOOGLE_API_KEY. Ustaw klucz i spróbuj ponownie.")
 
-    if OpenAI is None:
-        raise RuntimeError(
-            "Brak biblioteki 'openai'. Zainstaluj: python -m pip install openai"
-        )
+async def run_adk_async(instruction: str) -> str:
+    """Asynchronicznie uruchamia agenta ADK z zadaną instrukcją."""
+    ensure_google_api_key()
 
-    client = OpenAI(api_key=api_key)
-
-    system_prompt = (
-        "Jesteś agentem, który wybiera i wykonuje jedną akcję z listy.\n"
-        "Dostępne akcje i ich argumenty:\n"
-        "- tell_time: nie przyjmuje argumentów.\n"
-        "- create_note: args={\"text\": string, \"filename\": string (opcjonalny)}.\n"
-        "- sum_numbers: args={\"numbers\": array[number]}.\n\n"
-        "Zwróć WYŁĄCZNIE poprawny JSON w formacie:\n"
-        "{\n  \"action\": \"<tell_time|create_note|sum_numbers>\",\n  \"args\": { ... }\n}\n"
-        "Bez komentarzy, bez dodatkowego tekstu.\n"
-        "Jeśli polecenie nie pasuje idealnie, wybierz najbardziej sensowną akcję."
+    # Definicja agenta z dostępnymi narzędziami
+    agent = Agent(
+        name="adk_agent",
+        model=GOOGLE_MODEL,
+        tools=[tell_time, create_note, sum_numbers, google_search],
+        instruction="Jesteś pomocnym agentem. Wykonuj zadania, korzystając z dostępnych narzędzi. Na końcu zwróć zwięzłą odpowiedź.",
     )
 
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": instruction},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0,
-    )
+    # Ustawienie sesji w pamięci
+    session_service = InMemorySessionService()
+    await session_service.create_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID)
 
-    content = completion.choices[0].message.content
-    try:
-        parsed = json.loads(content)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Nie udało się sparsować JSON-a z modelu: {e}\nOtrzymano: {content}")
+    # Uruchomienie agenta
+    runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
+    content = genai_types.Content(role="user", parts=[genai_types.Part(text=instruction)])
+    events = runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
 
-    if "action" not in parsed:
-        raise RuntimeError(f"Brak klucza 'action' w odpowiedzi: {parsed}")
-    if "args" not in parsed:
-        parsed["args"] = {}
-
-    return parsed
-
-
-# ---- Wykonanie akcji lokalnie ----
-
-def execute_action(action_name: str, args: Dict[str, Any]) -> str:
-    if action_name == "tell_time":
-        return action_tell_time()
-
-    if action_name == "create_note":
-        text = str(args.get("text", "")).strip()
-        if not text:
-            raise ValueError("'create_note' wymaga argumentu 'text'.")
-        filename = str(args.get("filename", "notes.txt")).strip() or "notes.txt"
-        return action_create_note(text=text, filename=filename)
-
-    if action_name == "sum_numbers":
-        numbers = args.get("numbers")
-        if not isinstance(numbers, list) or not numbers:
-            raise ValueError("'sum_numbers' wymaga listy 'numbers'.")
-        result = action_sum_numbers(numbers)
-        return f"Suma: {result}"
-
-    raise ValueError(f"Nieznana akcja: {action_name}")
-
+    final_response = "Agent zakończył pracę, ale nie wygenerował odpowiedzi."
+    async for event in events:
+        if event.is_final_response():
+            try:
+                final_response = event.content.parts[0].text
+            except (AttributeError, IndexError):
+                final_response = "Otrzymano pustą odpowiedź od agenta."
+            break
+    
+    return final_response.strip()
 
 def run_agent(instruction: str) -> str:
-    decision = choose_action_via_llm(instruction)
-    action_name = decision["action"]
-    args = decision.get("args", {})
-    return execute_action(action_name, args)
+    """Synchroniczna funkcja opakowująca dla `run_adk_async`."""
+    return asyncio.run(run_adk_async(instruction))
 
+# ---- Główny punkt wejścia ----
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Prosty agent (akcje: tell_time, create_note, sum_numbers)")
-    parser.add_argument("-i", "--instruction", help="Polecenie w języku naturalnym do jednorazowego uruchomienia")
+    """Przetwarza argumenty wiersza poleceń i uruchamia agenta."""
+    parser = argparse.ArgumentParser(
+        description="Agent oparty na Google ADK.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="Dostępne narzędzia: tell_time, create_note, sum_numbers, google_search."
+    )
+    parser.add_argument("-i", "--instruction", help="Polecenie do jednorazowego wykonania przez agenta.")
     args = parser.parse_args()
 
     if args.instruction:
@@ -131,24 +120,26 @@ def main() -> None:
             print(f"Błąd: {e}")
         return
 
-    print("Prosty agent (akcje: tell_time, create_note, sum_numbers)")
-    print("Podaj polecenie (np. 'Dodaj 2 i 5', 'Zapisz notatkę: ...', 'Jaka jest teraz godzina?')")
-    try:
-        user_input = input("> ").strip()
-    except KeyboardInterrupt:
-        print("\nPrzerwano.")
-        return
+    print("Agent Google ADK jest gotowy. Podaj polecenie lub wpisz 'exit', aby zakończyć.")
+    print("Przykłady: 'Jaka jest teraz godzina?', 'Stwórz notatkę: to jest test', 'jaka jest pogoda w Warszawie?'")
+    
+    while True:
+        try:
+            user_input = input("> ").strip()
+            if user_input.lower() == 'exit':
+                print("Do widzenia!")
+                break
+            if not user_input:
+                continue
+            
+            result = run_agent(user_input)
+            print(result)
 
-    if not user_input:
-        print("Brak polecenia.")
-        return
-
-    try:
-        result = run_agent(user_input)
-        print(result)
-    except Exception as e:
-        print(f"Błąd: {e}")
-
+        except KeyboardInterrupt:
+            print("Do widzenia!")
+            break
+        except Exception as e:
+            print(f"Wystąpił błąd: {e}")
 
 if __name__ == "__main__":
     main()
