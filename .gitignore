@@ -12,3 +12,4 @@ venv/
 # System
 .DS_Store
 Thumbs.db
+uploads/

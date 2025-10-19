@@ -54,9 +54,9 @@ Prosty, konfigurowalny agent AI zbudowany w całości przy użyciu biblioteki `g
 
 Agenta można uruchomić na dwa sposoby:
 
-### 1. Tryb interaktywny
+### 1. Tryb interaktywny (w konsoli)
 
-Uruchom skrypt bez żadnych argumentów, aby rozpocząć rozmowę z agentem. Wpisz `exit`, aby zakończyć.
+Uruchom skrypt `agent.py` bez żadnych argumentów, aby rozpocząć rozmowę z agentem w terminalu. Wpisz `exit`, aby zakończyć.
 
 ```bash
 python agent.py
@@ -74,9 +74,9 @@ Notatka została zapisana w pliku 'lista.txt'.
 Stolicą Francji jest Paryż.
 ```
 
-### 2. Tryb jednorazowy
+### 2. Tryb jednorazowy (w konsoli)
 
-Użyj flagi `-i` lub `--instruction`, aby przekazać pojedyncze polecenie. Agent wykona zadanie i zakończy działanie.
+Użyj flagi `-i` lub `--instruction`, aby przekazać pojedyncze polecenie do skryptu `agent.py`. Agent wykona zadanie i zakończy działanie.
 
 ```bash
 python agent.py --instruction "Zsumuj liczby 10, 25 i 7.5"
@@ -87,9 +87,52 @@ python agent.py --instruction "Zsumuj liczby 10, 25 i 7.5"
 Suma: 42.5
 ```
 
+### 3. Bot na Telegramie
+
+Agent może być również uruchomiony jako bot na Telegramie, co pozwala na interakcję z nim za pomocą wiadomości.
+
+**Konfiguracja Bota na Telegramie:**
+
+1.  **Utwórz bota i uzyskaj token:**
+    -   Porozmawiaj z [@BotFather](https://t.me/BotFather) na Telegramie.
+    -   Użyj komendy `/newbot`, aby stworzyć nowego bota.
+    -   Postępuj zgodnie z instrukcjami, a na końcu otrzymasz token.
+
+2.  **Dodaj token do pliku `.env`:**
+    Otwórz plik `.env` i dodaj nową zmienną `TELEGRAM_BOT_TOKEN`:
+    ```env
+    GOOGLE_API_KEY="TwojKluczApiGoogle"
+    TELEGRAM_BOT_TOKEN="TwojTokenBotaTelegrama"
+    ```
+
+**Uruchomienie Bota:**
+
+Aby uruchomić bota, wykonaj poniższą komendę:
+
+```bash
+python bot.py
+```
+
+Bot będzie działał w tle i odpowiadał na wiadomości wysyłane na Telegramie. Możesz wysyłać do niego zarówno polecenia tekstowe, jak i zdjęcia.
+
 ## Struktura projektu
 
-- `agent.py`: Główny plik zawierający całą logikę agenta, definicje narzędzi i pętlę uruchomieniową.
-- `requirements.txt`: Lista zależności Pythona (`google-adk`, `python-dotenv` itp.).
-- `.env.example`: Szablon pliku konfiguracyjnego dla kluczy API.
-- `README.md`: Ten plik.
+```
+agent/
+│
+├── .env.example      # Przykład konfiguracji zmiennych środowiskowych
+├── .gitignore        # Pliki ignorowane przez Git
+├── agent.py          # Główny skrypt agenta (tryb konsolowy)
+├── bot.py            # Skrypt do uruchomienia bota na Telegramie
+├── requirements.txt  # Zależności projektu
+├── README.md         # Ten plik
+│
+└───tools/            # Katalog z narzędziami
+    ├── __init__.py
+    ├── create_google_keep_note.py
+    ├── create_note.py
+    ├── prepare_instagram_post.py
+    ├── publish_instagram_post.py
+    ├── sum_numbers.py
+    └── tell_time.py
+```
