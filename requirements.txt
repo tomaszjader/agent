@@ -1,3 +1,8 @@
 google-adk>=0.1.0
 google-genai>=0.7.1
 python-dotenv>=1.0.0
+python-telegram-bot
+instagrapi
+langchain
+langchain-core
+langchain-google-genai

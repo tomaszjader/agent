@@ -1,8 +1,5 @@
 import os
-import datetime
-import argparse
 import asyncio
-from typing import List, Any
 
 try:
     from dotenv import load_dotenv, find_dotenv
@@ -13,49 +10,88 @@ except ImportError:
 from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-
 from google.adk.tools import google_search
 from google.genai import types as genai_types
+
+from tools.tell_time import tell_time
+from tools.create_note import create_note
+from tools.sum_numbers import sum_numbers
+from tools.prepare_instagram_post import propose_caption
+from tools.publish_instagram_post import publish_post
 
 # ---- Konfiguracja ----
 GOOGLE_MODEL = os.environ.get("GOOGLE_MODEL", "gemini-pro")
 APP_NAME = os.environ.get("ADK_APP_NAME", "adk-agent-py")
-USER_ID = os.environ.get("ADK_USER_ID", "user-default")
-SESSION_ID = os.environ.get("ADK_SESSION_ID", "session-default")
 BASE_DIR = os.path.dirname(__file__)
 
-# ---- Narzędzia z dekoratorem @tool ----
+# ---- Globalne instancje ----
+session_service = InMemorySessionService()
+created_sessions = set()
 
-def tell_time() -> str:
-    """Zwraca aktualną datę i godzinę."""
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+agent = Agent(
+    name="adk_agent",
+    model=GOOGLE_MODEL,
+    tools=[tell_time, create_note, sum_numbers, google_search, propose_caption, publish_post],
+    instruction="""🧠 Agent Tomek — Twój asystent do postów i zadań
 
-def create_note(text: str, filename: str) -> str:
-    """Zapisuje podany tekst do pliku.
+Opis:
+Jesteś agentem Tomkiem, którego zadaniem jest pomaganie użytkownikowi w:
 
-    Args:
-        text: Tekst do zapisania w notatce.
-        filename: Nazwa pliku, w którym ma być zapisana notatka.
+tworzeniu i publikowaniu postów na Instagramie,
 
-    Returns:
-        Komunikat potwierdzający zapisanie notatki.
-    """
-    notes_path = os.path.join(BASE_DIR, filename)
-    os.makedirs(os.path.dirname(notes_path) or ".", exist_ok=True)
-    with open(notes_path, "a", encoding="utf-8") as f:
-        f.write(text.strip() + "\n")
-    return f"Notatka zapisana w '{os.path.basename(notes_path)}'."
+sumowaniu liczb,
 
-def sum_numbers(numbers: List[float]) -> float:
-    """Sumuje listę podanych liczb.
+wyszukiwaniu informacji w internecie,
 
-    Args:
-        numbers: Lista liczb do zsumowania.
+tworzeniu notatek w Google Keep,
 
-    Returns:
-        Suma podanych liczb.
-    """
-    return sum(numbers)
+oraz udzielaniu informacji o czasie.
+
+Twoim głównym celem jest wsparcie użytkownika w przygotowaniu i publikacji posta na Instagramie.
+
+
+
+🪜 Procedura publikacji posta
+
+Propozycja opisu:
+Użyj narzędzia propose_caption, aby wygenerować propozycję opisu posta.
+
+Akceptacja lub edycja:
+Zapytaj użytkownika, czy akceptuje zaproponowany opis.
+
+Jeśli chce wprowadzić zmiany, przeanalizuj jego uwagi i wygeneruj nową propozycję.
+
+Oczekiwanie na zdjęcie:
+Po zaakceptowaniu ostatecznego opisu poproś użytkownika o przesłanie zdjęcia.
+Poinformuj go, że czekasz na plik.
+
+Potwierdzenie publikacji:
+Po otrzymaniu zdjęcia (z podaną ścieżką pliku) przedstaw podsumowanie:
+
+treść opisu,
+
+informację o załączonym zdjęciu.
+Zapytaj użytkownika o ostateczne potwierdzenie publikacji.
+
+Publikacja:
+Dopiero po otrzymaniu potwierdzenia użyj narzędzia publish_post,
+przekazując ścieżkę do zdjęcia i zatwierdzony opis.
+
+Anulowanie:
+Jeśli użytkownik w dowolnym momencie zrezygnuje — anuluj proces.
+
+🔧 Dodatkowe funkcje
+
+Wyszukiwanie w internecie: jeśli użytkownik poprosi o znalezienie informacji — użyj google_search.
+
+Tworzenie notatek w Google Keep: jeśli użytkownik poprosi o stworzenie notatki — użyj create_note. Pamiętaj, aby poprosić o tytuł i treść notatki.
+
+Podawanie czasu: jeśli użytkownik zapyta o aktualny czas — użyj tell_time.
+
+Sumowanie liczb: jeśli użytkownik poprosi o obliczenia — wykonaj odpowiednie działania matematyczne.
+"""
+)
+runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
 
 # ---- Główna logika agenta ADK ----
 
@@ -64,26 +100,17 @@ def ensure_google_api_key() -> None:
     if not os.environ.get("GOOGLE_API_KEY"):
         raise RuntimeError("Brak zmiennej środowiskowej GOOGLE_API_KEY. Ustaw klucz i spróbuj ponownie.")
 
-async def run_adk_async(instruction: str) -> str:
+async def run_adk_async(session_id: str, instruction: str) -> str:
     """Asynchronicznie uruchamia agenta ADK z zadaną instrukcją."""
     ensure_google_api_key()
 
-    # Definicja agenta z dostępnymi narzędziami
-    agent = Agent(
-        name="adk_agent",
-        model=GOOGLE_MODEL,
-        tools=[tell_time, create_note, sum_numbers, google_search],
-        instruction="Jesteś pomocnym agentem. Wykonuj zadania, korzystając z dostępnych narzędzi. Na końcu zwróć zwięzłą odpowiedź.",
-    )
+    # Użycie globalnych instancji i ręczne zarządzanie sesją
+    if session_id not in created_sessions:
+        await session_service.create_session(app_name=APP_NAME, user_id="user-default", session_id=session_id)
+        created_sessions.add(session_id)
 
-    # Ustawienie sesji w pamięci
-    session_service = InMemorySessionService()
-    await session_service.create_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID)
-
-    # Uruchomienie agenta
-    runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
     content = genai_types.Content(role="user", parts=[genai_types.Part(text=instruction)])
-    events = runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
+    events = runner.run_async(user_id="user-default", session_id=session_id, new_message=content)
 
     final_response = "Agent zakończył pracę, ale nie wygenerował odpowiedzi."
     async for event in events:
@@ -95,51 +122,3 @@ async def run_adk_async(instruction: str) -> str:
             break
     
     return final_response.strip()
-
-def run_agent(instruction: str) -> str:
-    """Synchroniczna funkcja opakowująca dla `run_adk_async`."""
-    return asyncio.run(run_adk_async(instruction))
-
-# ---- Główny punkt wejścia ----
-
-def main() -> None:
-    """Przetwarza argumenty wiersza poleceń i uruchamia agenta."""
-    parser = argparse.ArgumentParser(
-        description="Agent oparty na Google ADK.",
-        formatter_class=argparse.RawTextHelpFormatter,
-        epilog="Dostępne narzędzia: tell_time, create_note, sum_numbers, google_search."
-    )
-    parser.add_argument("-i", "--instruction", help="Polecenie do jednorazowego wykonania przez agenta.")
-    args = parser.parse_args()
-
-    if args.instruction:
-        try:
-            result = run_agent(args.instruction)
-            print(result)
-        except Exception as e:
-            print(f"Błąd: {e}")
-        return
-
-    print("Agent Google ADK jest gotowy. Podaj polecenie lub wpisz 'exit', aby zakończyć.")
-    print("Przykłady: 'Jaka jest teraz godzina?', 'Stwórz notatkę: to jest test', 'jaka jest pogoda w Warszawie?'")
-    
-    while True:
-        try:
-            user_input = input("> ").strip()
-            if user_input.lower() == 'exit':
-                print("Do widzenia!")
-                break
-            if not user_input:
-                continue
-            
-            result = run_agent(user_input)
-            print(result)
-
-        except KeyboardInterrupt:
-            print("Do widzenia!")
-            break
-        except Exception as e:
-            print(f"Wystąpił błąd: {e}")
-
-if __name__ == "__main__":
-    main()

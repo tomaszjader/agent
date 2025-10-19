@@ -7,10 +7,12 @@ Prosty, konfigurowalny agent AI zbudowany w całości przy użyciu biblioteki `g
 - **Architektura oparta na Google ADK**: Wykorzystuje oficjalną bibliotekę `google-adk` do planowania, zarządzania sesją i wywoływania narzędzi.
 - **Narzędzia**: Agent ma dostęp do następujących narzędzi:
   - `tell_time`: Podaje aktualną datę i godzinę.
-  - `create_note`: Tworzy i zapisuje notatki tekstowe do plików.
+  - `create_note`: Tworzy notatki na komputerze.
   - `sum_numbers`: Sumuje listę liczb.
   - `google_search`: Wyszukuje informacje w internecie (wbudowane narzędzie ADK).
-- **Model Gemini**: Działa w oparciu o modele z rodziny Google Gemini (np. `gemini-1.5-flash`).
+  - `propose_caption`: Proponuje opis do posta na Instagramie.
+  - `publish_post`: Publikuje post na Instagramie.
+- **Model Gemini**: Działa w oparciu o modele z rodziny Google Gemini (np. `gemini-2.5-flash`).
 - **Tryb interaktywny i jednorazowy**: Można go uruchomić w pętli do prowadzenia rozmowy lub do wykonania pojedynczej instrukcji.
 
 ## Wymagania
@@ -46,7 +48,7 @@ Prosty, konfigurowalny agent AI zbudowany w całości przy użyciu biblioteki `g
     ```
 
 3.  **(Opcjonalnie) Zmień model Gemini lub identyfikatory sesji:**
-    Możesz zmienić domyślny model `gemini-1.5-flash` na inny kompatybilny model z rodziny Gemini. Możesz również dostosować identyfikatory sesji, jeśli jest to potrzebne.
+    Możesz zmienić domyślny model `gemini-2.5-flash` na inny kompatybilny model z rodziny Gemini. Możesz również dostosować identyfikatory sesji, jeśli jest to potrzebne.
 
 ## Uruchomienie
 
@@ -66,7 +68,7 @@ python agent.py
 2023-10-27 10:30:00
 
 > Stwórz notatkę o nazwie 'lista.txt' z tekstem: kupić mleko
-Notatka zapisana w 'lista.txt'.
+Notatka została zapisana w pliku 'lista.txt'.
 
 > Jaka jest stolica Francji?
 Stolicą Francji jest Paryż.
