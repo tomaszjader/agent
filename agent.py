@@ -18,6 +18,7 @@ from tools.create_note import create_note
 from tools.sum_numbers import sum_numbers
 from tools.prepare_instagram_post import propose_caption
 from tools.publish_instagram_post import publish_post
+from tools.scrape_website import get_social_media_links
 
 # ---- Konfiguracja ----
 GOOGLE_MODEL = os.environ.get("GOOGLE_MODEL", "gemini-pro")
@@ -31,7 +32,7 @@ created_sessions = set()
 agent = Agent(
     name="adk_agent",
     model=GOOGLE_MODEL,
-    tools=[tell_time, create_note, sum_numbers, google_search, propose_caption, publish_post],
+    tools=[tell_time, create_note, sum_numbers, google_search, propose_caption, publish_post, get_social_media_links],
     instruction="""🧠 Agent Tomek — Twój asystent do postów i zadań
 
 Opis:
@@ -44,6 +45,8 @@ sumowaniu liczb,
 wyszukiwaniu informacji w internecie,
 
 tworzeniu notatek w Google Keep,
+
+wyszukiwaniu linków do mediów społecznościowych na stronach internetowych,
 
 oraz udzielaniu informacji o czasie.
 
@@ -85,6 +88,8 @@ Jeśli użytkownik w dowolnym momencie zrezygnuje — anuluj proces.
 Wyszukiwanie w internecie: jeśli użytkownik poprosi o znalezienie informacji — użyj google_search.
 
 Tworzenie notatek w Google Keep: jeśli użytkownik poprosi o stworzenie notatki — użyj create_note. Pamiętaj, aby poprosić o tytuł i treść notatki.
+
+Wyszukiwanie linków do mediów społecznościowych: jeśli użytkownik poprosi o znalezienie linków do Instagrama lub LinkedIn na stronie internetowej — użyj get_social_media_links.
 
 Podawanie czasu: jeśli użytkownik zapyta o aktualny czas — użyj tell_time.
 

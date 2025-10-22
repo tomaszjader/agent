@@ -6,3 +6,9 @@ instagrapi
 langchain
 langchain-core
 langchain-google-genai
+requests
+beautifulsoup4
+requests
+selenium
+webdriver-manager
+pyperclip
